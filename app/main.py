@@ -1,5 +1,6 @@
 #./app/main.py
 from fastapi import FastAPI, Query
+from typing import Optional
 
 app = FastAPI()
 
@@ -23,13 +24,15 @@ async def read_user_me():
 async def read_user_me(user_id:int):
     return {"user_id":"current_user", "message":f"{user_id}나야 나"}
 
+
+
 import uuid
 @app.get("/products/{product_uuid}")
 async def get_product_by_uuid(product_uuid:uuid.UUID):
     return {"product_uuid": str(product_uuid), "message":"product id by UUID"}
 
 
-from typing import Optional, List, Union 
+
 
 @app.get("/product/")
 async def read_products(
