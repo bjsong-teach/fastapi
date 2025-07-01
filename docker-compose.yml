@@ -6,7 +6,7 @@ services:
     container_name: mysql_db
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} #root password
-      - MYSQL_DATABASE= ${MYSQL_DATABASE} #database name
+      - MYSQL_DATABASE=${MYSQL_DATABASE} #database name
     volumes:
       - mysql_data:/var/lib/mysql #저장위치
     ports:
