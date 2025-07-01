@@ -1,6 +1,9 @@
 #./app/main.py
-from fastapi import FastAPI, Query
-from typing import Optional
+from fastapi import FastAPI, Query, Depends, HTTPException, status
+from typing import Optional, List
+from sqlmodel import Session, select
+#from app.database import create_db_and_tables, get_session
+
 
 app = FastAPI()
 

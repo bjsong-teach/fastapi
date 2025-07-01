@@ -1,12 +1,29 @@
 version: '3.8' # 'viersion' -> 'version'으로 수정
 
 services:
+  db:
+    image: mysql:8.0
+    container_name: mysql_db
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} #root password
+      - MYSQL_DATABASE= ${MYSQL_DATABASE} #database name
+    volumes:
+      - mysql_data:/var/lib/mysql #저장위치
+    ports:
+      - "3306:3306" #포트
+
   fastapi_app:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./app:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload 
+volumes:
+  mysql_data:
