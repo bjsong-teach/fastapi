@@ -1,65 +1,162 @@
 #./app/main.py
 from fastapi import FastAPI, Query, Depends, HTTPException, status
 from typing import Optional, List
-from sqlmodel import Session, select
+from sqlmodel import SQLModel, Field, create_engine, Session, select
+from sqlalchemy import Text 
+from pydantic import BaseModel
 #from app.database import create_db_and_tables, get_session
+from database import engine
 
+
+class Users(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str
+    email: str 
+
+class Profiles(SQLModel, table=True):
+    user_id:Optional[int] = Field(default=None, primary_key=True)
+    bio: Optional[str] = Field(default=None, sa_type=Text, nullable=True)
+    phone:Optional[str] = Field(default=None, max_length=20, nullable=True)
+
+class Posts(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str = Field(default=None, max_length=100)
+    content: Optional[str] = Field(default=None, sa_type=Text, nullable=True)
+    user_id: Optional[int] = Field(default=None, nullable=True)
+    cnt: Optional[int] = Field(default=0, ge=0)
+#nullable=True
+
+class UsersProfile(SQLModel):
+    id: int
+    username:str
+    email:str
+    # phone과 bio 필드를 최상위 레벨에 Optional로 추가
+    phone: Optional[str] = None
+    bio: Optional[str] = None
+
+class UserProfile(SQLModel):
+    id: int
+    username:str
+    email:str
+    profile: Optional[Profiles] = None
 
 app = FastAPI()
 
-@app.get("/")
-async def read_root():
-    return {"message":"Hellow everyone"}
+@app.on_event("startup")
+def on_startup():
+    SQLModel.metadata.create_all(engine)
 
-@app.get("/items/{item_id}")
-async def read_item(item_id:int):
-    return {"item_id":item_id, "message": f"아이템 번호는 {item_id}입니다."}
+# 샘플 데이터 초기화
+@app.post("/users/init/")
+def init_users():
+    sample_users = [
+        Users(username=f"User{i}", email=f"user{i}@example.com") for i in range(1, 21)
+    ]
+    with Session(engine) as session:
+        for user in sample_users:
+            session.add(user)
+        session.commit()
+    return {"message": "20 users initialized"}
 
-@app.get("/user/{user_id}/items/{item_id}")
-async def read_item(user_id:int,item_id:int):
-    return {"item_id":item_id, "user_id":user_id, "message": f"아이템 번호는 {item_id}, user_id는 {user_id}입니다."}
+# 특정 사용자 조회 (ID로 한 명)
+@app.get("/users/{id}", response_model=Users)
+def read_user(id: int):
+    with Session(engine) as session:  # 세션 열기
+        user = session.get(Users, id)  # ID로 조회
+        if not user:  # 없으면 404 에러
+            raise HTTPException(status_code=404, detail="User not found")
+        return user  # 사용자 반환 
+@app.get("/profiles/{user_id}", response_model=Profiles)
+def read_profiles(user_id: int):
+    with Session(engine) as session:  # 세션 열기
+        profiles = session.get(Profiles, user_id)  # ID로 조회
+        if not profiles:  # 없으면 404 에러
+            raise HTTPException(status_code=404, detail="User not found")
+        return profiles  # 사용자 반환 
 
-@app.get("/user/me")
-async def read_user_me():
-    return {"user_id":"current_user", "message":"나야 나"}
+@app.get("/profiles/all/", response_model=List[Profiles])
+def read_all_profiles():
+    with Session(engine) as session:  # 세션 열기
+        statement = select(Profiles)
+        profiles = session.exec(statement).all()
+        return profiles
+@app.get("/users/all/", response_model=List[Users])
+def read_all_users():
+    with Session(engine) as session:  # 세션 열기
+        statement = select(Users)
+        users = session.exec(statement).all()
+        return users
+    
+@app.get("/users/", response_model=List[Users])
+def read_paging_users(page:int=Query(1,ge=1)):
+    with Session(engine) as session:  # 세션 열기
+        size = 10
+        offset = (page-1)*size
+        statement = select(Users).offset(offset).limit(size)
+        users = session.exec(statement).all()
+        return users
+@app.get("/posts/", response_model=List[Posts])
+def read_paging_posts(page:int=Query(1,ge=1)):
+    with Session(engine) as session:  # 세션 열기
+        size = 10
+        offset = (page-1)*size
+        statement = select(Posts).offset(offset).limit(size)
+        posts = session.exec(statement).all()
+        return posts    
+    
+@app.get("/users/profile/{id}", response_model=UserProfile)
+def read_user_profile(id:int):
+    with Session(engine) as session:
+        statement = (
+            select(Users, Profiles)
+            .join(Profiles, Users.id==Profiles.user_id)
+            .where(Users.id==id)
+        )
+        result = session.exec(statement).first()
+        if not result:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user, profile = result
+        
+        return UserProfile(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            profile=profile
+        )
 
-@app.get("/user/{user_id}")
-async def read_user_me(user_id:int):
-    return {"user_id":"current_user", "message":f"{user_id}나야 나"}
+@app.get("/users/profile/", response_model=List[UsersProfile])
+def read_paging_user_profile(page:int=Query(1,ge=1)):
+    with Session(engine) as session:  # 세션 열기
+        size = 10
+        offset = (page-1)*size
+        statement = (
+            select(Users, Profiles)
+            .join(Profiles, Users.id==Profiles.user_id)
+            .offset(offset).limit(size)
+        )
+        results = session.exec(statement).all()
+        user_profiles_list = []
+        for user, profile in results:
+            if user: # user 객체가 유효한 경우에만 처리
+                # phone과 bio를 담을 변수를 None으로 초기화
+                phone_data = None
+                bio_data = None
 
+                if profile: # profile 객체가 실제로 존재하는 경우
+                    phone_data = profile.phone
+                    bio_data = profile.bio
 
-
-import uuid
-@app.get("/products/{product_uuid}")
-async def get_product_by_uuid(product_uuid:uuid.UUID):
-    return {"product_uuid": str(product_uuid), "message":"product id by UUID"}
-
-
-
-
-@app.get("/product/")
-async def read_products(
-    q: Optional[str]=None,
-    short: bool=False,
-    skip: int=0,
-    limit:int=10
-):
-    results = {"skip":skip, "limit":limit}
-    if q:
-        results.update({"q":q})
-    if not short:
-        results.update({"description":"dsalfj/a;lwl"})
-    return results
-
-@app.get("/search_items/")
-async def search_items(
-    keyword:str= Query(...,min_length=3, max_length=50, description="검색키워드 3자에서 50자"),
-    max_price:Optional[float] = Query(None, gt=0, description="최대가격이 0보다 커야한다."),
-    min_price:Optional[float] = Query(None, ge=0, description="최대가격이 0보다 크거나 같아야 한다.")
-):
-    results = {"keyword":f"{keyword}"}
-    if max_price is not None:
-        results.update({"max_price":max_price})
-    if min_price is not None:
-        results.update({"min_price":min_price})
-    return results
+                # UsersProfile 모델에 맞게 데이터 구성
+                user_profiles_list.append(
+                    UsersProfile(
+                        id=user.id,
+                        username=user.username,
+                        email=user.email,
+                        phone=phone_data, # phone 데이터를 직접 매핑
+                        bio=bio_data      # bio 데이터를 직접 매핑
+                    )
+                )
+        return user_profiles_list # 최종 리스트 반환
+        
+        #select(Posts).offset(offset).limit(size)

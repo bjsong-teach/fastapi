@@ -1,29 +1,34 @@
-version: '3.8' # 'viersion' -> 'version'으로 수정
-
 services:
   db:
     image: mysql:8.0
     container_name: mysql_db
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} #root password
-      - MYSQL_DATABASE=${MYSQL_DATABASE} #database name
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
     volumes:
-      - mysql_data:/var/lib/mysql #저장위치
+      - mysql_data:/var/lib/mysql
     ports:
-      - "3306:3306" #포트
-
-  fastapi_app:
+      - "3306:3306"
+    healthcheck: # <--- 이 섹션을 추가하세요
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s # MySQL이 초기 시작할 시간을 줍니다.
+  web:
+    container_name: fastapi_web
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
     depends_on:
-      - db
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
+      db:
+        condition: service_healthy # <--- 의존성 조건을 변경하세요
+    env_file:
+      - .env
     volumes:
       - ./app:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload 
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 volumes:
   mysql_data:

@@ -1,8 +1,6 @@
-#requirements.txt
-fastapi
-uvicorn[standard]
-sqlmodel
-mysqlclient
-python-dotenv
-pydantic
-pydantic-settings
+fastapi==0.115.14
+sqlmodel==0.0.24
+pymysql
+python-dotenv==1.1.1
+uvicorn==0.35.0
+cryptography

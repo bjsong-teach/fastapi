@@ -1,0 +1,34 @@
+#모든 고객의 이름과 이메일을 조회하세요.
+SELECT NAME, email FROM customers 
+#가격이 500 이상인 상품의 이름과 가격을 조회하세요.
+SELECT product_name, price FROM products WHERE price>=500
+#2024년 7월에 이루어진 모든 주문을 조회하세요.
+SELECT * FROM orders WHERE order_date BETWEEN '2024-07-01' AND '2024-07-31'
+SELECT * FROM orders WHERE SUBSTRING(order_date,1,7)='2024-07'
+SELECT * FROM orders WHERE SUBSTRING(order_date,1,4)='2024' AND SUBSTRING(order_date,6,2)='07'
+SELECT * FROM orders WHERE YEAR(order_date)='2024' AND MONTH(order_date) = '7'
+#select YEAR(order_date), month(order_date) from orders
+#각 고객이 주문한 총 주문 금액을 고객 이름과 함께 조회하세요.
+SELECT a.name, b.total_amount FROM customers a JOIN orders b ON a.customer_id=b.customer_id
+SELECT a.name, SUM(b.total_amount) FROM customers a JOIN orders b ON a.customer_id=b.customer_id GROUP BY a.name
+
+#가장 많이 판매된 상품(수량 기준)의 이름과 총 판매 수량을 조회하세요.
+SELECT b.product_name, SUM(quantity) AS sq FROM order_details a JOIN products b ON a.product_id=b.product_id 
+GROUP BY a.product_id ORDER BY sq DESC LIMIT 1
+#주문을 한 번도 하지 않은 고객의 이름을 조회하세요.
+SELECT a.name FROM customers a LEFT JOIN orders b ON a.customer_id=b.customer_id WHERE b.order_id IS NULL
+
+#각 상품별로 주문된 총 수량과 총 매출(수량 * 가격)을 조회하세요. (주문이 없는 상품도 포함)
+SELECT DISTINCT a.product_name, SUM(a.price*b.quantity) AS sumprice FROM products a JOIN order_details b ON a.product_id=b.product_id GROUP BY a.product_id
+
+#가장 최근 주문 날짜와 그 주문을 한 고객의 이름, 주문 금액을 조회하세요.
+SELECT b.name, a.total_amount, a.order_date FROM orders a JOIN customers b ON a.customer_id= b.customer_id ORDER BY a.order_date DESC LIMIT 1
+
+#문제 1: 고객별 구매 패턴 분석
+#문제: 각 고객이 구매한 상품 카테고리(가격대 기준)별로 총 구매 수량과 총 지출 금액을 조회하세요. 가격대는 아래 기준으로 나눕니다:
+#저가: 0 ~ 100
+#중가: 101 ~ 500
+#고가: 501 이상 고객 이름, 가격대, 총 구매 수량, 총 지출 금액을 출력하고, 구매 내역이 없는 고객도 포함하세요. 
+#결과는 고객 이름과 가격대 순으로 정렬하세요.
+
+    
