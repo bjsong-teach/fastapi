@@ -1,6 +1,8 @@
 fastapi==0.115.14
 sqlmodel==0.0.24
-pymysql
+sqlalchemy[asyncio]
+asyncmy
 python-dotenv==1.1.1
 uvicorn==0.35.0
+jinja2==3.1.4
 cryptography

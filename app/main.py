@@ -1,22 +1,65 @@
 #./app/main.py
-from fastapi import FastAPI, Query, Depends, HTTPException, status
+from fastapi import FastAPI, Query, Depends, HTTPException, status, Request
+#html 인식
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, JSONResponse
+
 from typing import Optional, List
-from sqlmodel import SQLModel, Field, create_engine, Session, select
-from sqlalchemy import Text 
+#sqlmodel 핵심 기능
+from sqlmodel import SQLModel, Field, create_engine, Session, select, Relationship
+from sqlalchemy import Column
+from sqlalchemy.sql.sqltypes import Text, Integer
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload #selectinlload
+#pydantic BaseModel 출력용으로 사용
 from pydantic import BaseModel
-#from app.database import create_db_and_tables, get_session
-from database import engine
+
+# AsyncSessionLocal은 startup에서 데이터 삽입용
+from database import engine, AsyncSessionLocal, get_session
+import logging
+logger = logging.getLogger(__name__) # __name__을 사용하면 모듈 이름을 로거 이름으로 가집니다.
+logger.setLevel(logging.INFO) # 여기서는 INFO 레벨 이상만 기록하도록 설정
 
 
 class Users(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str
-    email: str 
+    email: str
+    profile:Optional["Profiles"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={
+            "primaryjoin":"Users.id == Profiles.user_id",
+            "foreign_keys":"[Profiles.user_id]",
+            "uselist":False,
+            "cascade":"all, delete-orphan"
+        }
+    )
+
+    posts:Optional["Posts"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={
+            "primaryjoin":"Users.id == Posts.user_id",
+            "foreign_keys":"[Posts.user_id]",
+            "uselist":False,
+            "cascade":"all, delete-orphan"
+        }
+    )
+
 
 class Profiles(SQLModel, table=True):
-    user_id:Optional[int] = Field(default=None, primary_key=True)
-    bio: Optional[str] = Field(default=None, sa_type=Text, nullable=True)
+    #user_id:Optional[int] = Field(default=None, primary_key=True)
+    user_id:Optional[int] = Field(sa_column=Column(Integer, primary_key=True, autoincrement=False))
+    bio: Optional[str] = Field(sa_type=Text, nullable=True)
     phone:Optional[str] = Field(default=None, max_length=20, nullable=True)
+
+    user:Optional["Users"] = Relationship(
+        back_populates="profile",
+        sa_relationship_kwargs={
+            "primaryjoin":"Profiles.user_id == Users.id",
+            "foreign_keys":"[Profiles.user_id]",
+            "uselist":False
+        }
+    )
 
 class Posts(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -24,9 +67,18 @@ class Posts(SQLModel, table=True):
     content: Optional[str] = Field(default=None, sa_type=Text, nullable=True)
     user_id: Optional[int] = Field(default=None, nullable=True)
     cnt: Optional[int] = Field(default=0, ge=0)
+    
+    user:Optional["Users"] = Relationship(
+        back_populates="posts",
+        sa_relationship_kwargs={
+            "primaryjoin":"Posts.user_id == Users.id",
+            "foreign_keys":"[Posts.user_id]",
+        }
+    )
+
 #nullable=True
 
-class UsersProfile(SQLModel):
+class UsersProfile(BaseModel):
     id: int
     username:str
     email:str
@@ -34,18 +86,65 @@ class UsersProfile(SQLModel):
     phone: Optional[str] = None
     bio: Optional[str] = None
 
-class UserProfile(SQLModel):
+class UserProfile(BaseModel):
     id: int
     username:str
     email:str
     profile: Optional[Profiles] = None
+    class config:
+        from_attributes:True
+
+class PostOutput(BaseModel):
+    id: int
+    title: str
+    content: Optional[str] = None
+    cnt: int
+    class config:
+        from_attributes:True
+class UserPosts(BaseModel):
+    id: int
+    username:str
+    email:str
+    posts: List[PostOutput] 
+    class config:
+        from_attributes:True
+
+class UserRead(BaseModel):
+    id:int
+    username:str
+    email:str
+    class config:
+        from_attributes:True # orm 객체에서 속성 가져오기 허용
+
+class ProfileRead(BaseModel):
+    user_id: int
+    bio:Optional[str] = None
+    phone:Optional[str] = None
+    class config:
+        from_attributes:True # orm 객체에서 속성 가져오기 허용
+
+class PostRead(BaseModel):
+    id:int
+    title:str
+    content:Optional[str] = None
+    user_id:Optional[int] = None
+    cnt:Optional[int] = None
+
+class UserCreate(SQLModel):
+    username: str
+    email: str
 
 app = FastAPI()
-
+templates = Jinja2Templates(directory="templates")
 @app.on_event("startup")
-def on_startup():
-    SQLModel.metadata.create_all(engine)
+async def on_startup():
+    #SQLModel.metadata.create_all(engine)
+    async with engine.begin() as conn: # 비동기 컨넥션 시작
+        await conn.run_sync(SQLModel.metadata.create_all) # <-- 이 부분 수정!
 
+@app.get("/register", response_class="HTMLResponse")
+async def get_register_page(request: Request):
+    return templates.TemplateResponse("register.html",{"request":request})
 # 샘플 데이터 초기화
 @app.post("/users/init/")
 def init_users():
@@ -59,71 +158,127 @@ def init_users():
     return {"message": "20 users initialized"}
 
 # 특정 사용자 조회 (ID로 한 명)
-@app.get("/users/{id}", response_model=Users)
-def read_user(id: int):
-    with Session(engine) as session:  # 세션 열기
-        user = session.get(Users, id)  # ID로 조회
-        if not user:  # 없으면 404 에러
-            raise HTTPException(status_code=404, detail="User not found")
-        return user  # 사용자 반환 
-@app.get("/profiles/{user_id}", response_model=Profiles)
-def read_profiles(user_id: int):
-    with Session(engine) as session:  # 세션 열기
-        profiles = session.get(Profiles, user_id)  # ID로 조회
-        if not profiles:  # 없으면 404 에러
-            raise HTTPException(status_code=404, detail="User not found")
-        return profiles  # 사용자 반환 
-
-@app.get("/profiles/all/", response_model=List[Profiles])
-def read_all_profiles():
-    with Session(engine) as session:  # 세션 열기
-        statement = select(Profiles)
-        profiles = session.exec(statement).all()
-        return profiles
-@app.get("/users/all/", response_model=List[Users])
-def read_all_users():
-    with Session(engine) as session:  # 세션 열기
-        statement = select(Users)
-        users = session.exec(statement).all()
-        return users
+@app.get("/users/{id}", response_class=HTMLResponse)
+async def read_user(
+        request: Request,
+        id: int, 
+        session: Session=Depends(get_session)
+    ):
+    user = await session.get(Users, id)  # ID로 조회
+    if not user:  # 없으면 404 에러
+        raise HTTPException(status_code=404, detail="User not found")
+    return templates.TemplateResponse(
+        "register1.html",
+        {
+            "request": request,
+            "user": user
+        }
+    )
     
-@app.get("/users/", response_model=List[Users])
-def read_paging_users(page:int=Query(1,ge=1)):
-    with Session(engine) as session:  # 세션 열기
-        size = 10
-        offset = (page-1)*size
-        statement = select(Users).offset(offset).limit(size)
-        users = session.exec(statement).all()
-        return users
-@app.get("/posts/", response_model=List[Posts])
-def read_paging_posts(page:int=Query(1,ge=1)):
-    with Session(engine) as session:  # 세션 열기
-        size = 10
-        offset = (page-1)*size
-        statement = select(Posts).offset(offset).limit(size)
-        posts = session.exec(statement).all()
-        return posts    
+@app.get("/profiles/{user_id}", response_class=HTMLResponse)
+async def read_profiles(
+        request: Request,
+        user_id: int, 
+        session: Session=Depends(get_session)
+    ):
+    profiles = await session.get(Profiles, user_id)  # ID로 조회
+    if not profiles:  # 없으면 404 에러
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return templates.TemplateResponse(
+        "profile.html",
+        {
+            "request": request,
+            "profiles": profiles
+        }
+    )
+    
+@app.patch("/profiles/{user_id}", response_model=Profiles)
+async def update_profiles(user_id: int, session: Session=Depends(get_session)):
+    profiles = await session.get(Profiles, user_id)  # ID로 조회
+    if not profiles:  # 없으면 404 에러
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return profiles  # 사용자 정보 반환 
+
+@app.get("/post/{id}", response_model=PostRead)
+async def read_profiles(id: int, session: Session=Depends(get_session)):
+    post = await session.get(Posts, id)  # ID로 조회
+    if not post:  # 없으면 404 에러
+        raise HTTPException(status_code=404, detail="Post not found")
+    return post  # 글 반환 
+
+@app.get("/profiles/all/", response_model=List[ProfileRead])
+async def read_all_profiles(session: Session=Depends(get_session)):
+    statement = select(Profiles)
+    result = await session.execute(statement)  # AsyncSession의 execute 사용
+    profiles = result.scalars().all()  # 결과에서 스칼라 객체 추출
+    return profiles
+@app.get("/users/all/", response_model=List[UserRead])
+async def read_all_users(session: AsyncSession=Depends(get_session)):
+    statement = select(Users)
+    result = await session.execute(statement)
+    users = result.scalars().all()  # 결과에서 스칼라 객체 추출
+    return users
+'''
+@app.get("/posts/all/", response_model=List[PostRead])
+async def read_all_posts(session: Session=Depends(get_session)):
+    statement = select(Posts)
+    result = await session.execute(statement)
+    posts = result.scalars().all()  # 결과에서 스칼라 객체 추출
+    return posts
+'''    
+@app.get("/users/", response_model=List[UserRead])
+async def read_paging_users(page:int=Query(1,ge=1),session: Session=Depends(get_session)):
+    size = 10
+    offset = (page-1)*size
+    statement = select(Users).offset(offset).limit(size)
+    result = await session.execute(statement)
+    users = result.scalars().all()  # 결과에서 스칼라 객체 추출
+    return users
+@app.post("/users/", response_model=Users, status_code=status.HTTP_201_CREATED)
+async def create_user(user: UserCreate, session: Session=Depends(get_session)):
+    db_user = Users.model_validate(user)
+    try:
+        session.add(db_user)
+        await session.commit()
+        session.refresh(db_user)
+        db_profile = Profiles(user_id=db_user.id, bio="skdmfls;lksdjfㅇㄴ말ㅇㄴㅁ;ㅣ", phone=None)
+        session.add(db_profile)
+        await session.commit()
+        session.refresh(db_profile)
+        logger.info(f"사용자 명 {db_user.username}")
+        return db_user
+    except Exception as e:
+        session.rollback()
+        logger.info(f"사용자 생성오류: {e}")
+        raise HTTPException(status_code=404, detail="사용자 추가에 실패했습니다.")
+@app.get("/posts/", response_model=List[PostRead])
+async def read_paging_posts(page:int=Query(1,ge=1),session: Session=Depends(get_session)):
+    size = 10
+    offset = (page-1)*size
+    statement = select(Posts).offset(offset).limit(size)
+    result = await session.execute(statement)
+    posts = result.scalars().all()  # 결과에서 스칼라 객체 추출
+    return posts
     
 @app.get("/users/profile/{id}", response_model=UserProfile)
-def read_user_profile(id:int):
-    with Session(engine) as session:
-        statement = (
-            select(Users, Profiles)
-            .join(Profiles, Users.id==Profiles.user_id)
-            .where(Users.id==id)
-        )
-        result = session.exec(statement).first()
-        if not result:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        user, profile = result
-        
-        return UserProfile(
-            id=user.id,
-            username=user.username,
-            email=user.email,
-            profile=profile
-        )
+async def read_user_profile(id:int,session: Session=Depends(get_session)):
+    statement = (
+        select(Users, Profiles)
+        .join(Profiles, Users.id==Profiles.user_id)
+        .where(Users.id==id)
+    )
+    result = (await session.execute(statement)).first()
+    if not result:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user, profile = result
+    
+    return UserProfile(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        profile=profile
+    )
 
 @app.get("/users/profile/", response_model=List[UsersProfile])
 def read_paging_user_profile(page:int=Query(1,ge=1)):
@@ -160,3 +315,30 @@ def read_paging_user_profile(page:int=Query(1,ge=1)):
         return user_profiles_list # 최종 리스트 반환
         
         #select(Posts).offset(offset).limit(size)
+from sqlalchemy.exc import OperationalError        
+@app.get("/users/posts/{user_id}/", response_model=UserPosts)
+async def read_user_posts(user_id: int, page: int = Query(1, ge=1), session: Session = Depends(get_session)):
+    size = 10
+    offset = (page - 1) * size
+
+    user_stmt = select(Users).where(Users.id == user_id)
+    user_result = await session.execute(user_stmt)
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+
+    posts_stmt = (
+        select(Posts)
+        .where(Posts.user_id == user_id)
+        .offset(offset)
+        .limit(size)
+    )
+    posts_result = await session.execute(posts_stmt)
+    posts_list_from_db = posts_result.scalars().all()
+
+    return UserPosts(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        posts=[PostOutput.model_validate(post, from_attributes=True) for post in posts_list_from_db]  
+    )
