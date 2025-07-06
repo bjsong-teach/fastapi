@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>회원 프로필 수정</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .link {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .link a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>회원 프로필 수정</h1>{{request}}
+        {% if profiles %}
+            <p><strong>ID:</strong> {{ profiles.user_id }}</p>
+            <p><strong>자기소개:</strong> {{ profiles.bio }}</p>
+            <p><strong>폰:</strong> {{ profiles.phone }}</p>
+        {% else %}
+            <p>사용자를 찾을 수 없습니다.</p>
+        {% endif %}
+        <input type="hidden" name="user_id" id="user_id" value="{{ profiles.user_id }}">
+        <div class="form-group">
+            <label for="username">자기소개</label>
+            <textarea id="bio" style="width: 100%;">{{ profiles.bio }}</textarea>
+        </div>
+        <div class="form-group">
+            <label for="email">phone</label>
+            <input id="phone" type="text" placeholder="phone" value="{{ profiles.phone }}">
+        </div>
+        <button onclick="updateProfiles()">프로필 수정</button>
+        <p class="link"><a href="/">홈으로 돌아가기</a></p>
+    </div>
+
+    <script>
+        const userData = 
+        async function updateProfiles() {
+            const user_id = document.getElementById('user_id').value;
+            const bio = document.getElementById('bio').value;
+            const phone = document.getElementById('phone').value;
+            if (!phone || !bio) {
+                alert('모든 필드를 입력하세요.');
+                return;
+            }
+            const response = await fetch('/profiles/${profiles.user_id}', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id, bio, phone })
+            });
+            if (response.ok) {
+                alert('회원 프로필 정보 변경 성공!');
+                //window.location.href = '/';
+            } else {
+                const error = await response.json();
+                alert(`회원 가입 실패: ${error.detail}`);
+            }
+        }
+    </script>
+</body>
+</html>

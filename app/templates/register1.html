@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>회원 정보 수정</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .link {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .link a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>회원 정보 수정</h1>
+
+        {% if user %}
+            <input type="hidden" id="id" value="{{ user.id }}">
+
+            <div class="form-group">
+                <label for="username">사용자 이름 (Username)</label>
+                <input id="username" type="text" placeholder="Username" value="{{ user.username }}">
+            </div>
+            <div class="form-group">
+                <label for="email">이메일 (Email)</label>
+                 <input id="email" type="email" placeholder="Email" value="{{ user.email }}">
+            </div>
+            <button onclick="updateUser()">수정하기</button>
+
+        {% else %}
+            <p>사용자 정보를 불러올 수 없습니다.</p>
+        {% endif %}
+
+        <p class="link"><a href="/">홈으로 돌아가기</a></p>
+    </div>
+
+    <script>
+        // [수정] async function 키워드를 함수 이름 앞으로 이동하여 올바르게 정의
+        async function updateUser() {
+            event.preventDefault();
+            const id = document.getElementById('id').value;
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+
+            if (!username || !email) {
+                alert('모든 필드를 입력하세요.');
+                return;
+            }
+
+            // [수정] fetch URL을 '/users/{id}' 형태로 동적으로 생성
+            const response = await fetch(`/users/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                // [수정] 요청 본문(body)에서 id를 제거하고 변경할 데이터만 포함
+                body: JSON.stringify({ username, email })
+            });
+
+            if (response.ok) {
+                alert('회원 정보 수정 성공!');
+                // 성공 시 프로필 페이지나 홈으로 이동할 수 있습니다.
+                window.location.href = `/users/${id}`;
+            } else {
+                const error = await response.json();
+                alert(`회원 정보 수정 실패: ${error.detail}`);
+            }
+        }
+    </script>
+</body>
+</html>

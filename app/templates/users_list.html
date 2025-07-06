@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>전체 프로필 목록</title>
+        <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; background-color: #f8f9fa; }
+        .container { max-width: 900px; margin: 2rem auto; padding: 2rem; background-color: #fff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #343a40; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+        th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #dee2e6; }
+        th { background-color: #f1f3f5; }
+        .delete-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .update-btn {
+            background-color: #1934ce;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        .message {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 5px;
+            display: none; /* 기본적으로 숨김 */
+        }
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👤 전체 프로필 목록</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>아이디</th>
+                    <th>이름</th>
+                    <th>이메일</th>
+                    <th>상세보기</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr id="user-row-{{ user.id }}">
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        <button class="update-btn" onclick="javascript:location.href='/users/{{ user.id }}'">프로필 보기</button>
+                        <button class="update-btn" onclick="javascript:location.href='/users/'">사용자 생성</button>
+                        <!-- 삭제 버튼: 클릭 시 deleteUser 함수 호출 -->
+                        <button class="delete-btn" onclick="deleteUser({{ user.id }}, '{{ user.username }}')">
+                            삭제
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <script>
+        // [수정] 스크립트 로드 시점에 message-box 요소를 미리 찾아 변수에 저장합니다.
+        const messageBox = document.getElementById('message-box');
+
+        async function deleteUser(userId, username) {
+            // 1. 사용자에게 삭제 여부를 다시 확인합니다.
+            if (!confirm(`정말로 '${username}' 사용자를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+                return; // 사용자가 '취소'를 누르면 함수 종료
+            }
+
+            try {
+                // 2. 서버에 DELETE 요청을 보냅니다.
+                const response = await fetch(`/users/${userId}`, {
+                    method: 'DELETE'
+                });
+
+                // 3. 응답 상태 코드를 확인합니다.
+                if (response.status === 204) { // 204 No Content는 성공을 의미
+                    // 4. 성공 시, 화면에서 해당 사용자 행을 제거합니다.
+                    const userRow = document.getElementById(`user-row-${userId}`);
+                    if (userRow) {
+                        userRow.remove();
+                    }
+                    // 성공 메시지 표시 (이제 messageBox는 null이 아님)
+                    messageBox.textContent = `'${username}' 사용자가 성공적으로 삭제되었습니다.`;
+                    messageBox.className = 'message success';
+                    messageBox.style.display = 'block';
+
+                } else {
+                    // 5. 실패 시, 오류 메시지를 표시합니다.
+                    const errorData = await response.json();
+                    messageBox.textContent = `오류: ${errorData.detail || '알 수 없는 오류가 발생했습니다.'}`;
+                    messageBox.className = 'message error';
+                    messageBox.style.display = 'block';
+                }
+            } catch (error) {
+                // 네트워크 오류 등 예외 처리
+                messageBox.textContent = `네트워크 요청 중 오류가 발생했습니다: ${error}`;
+                messageBox.className = 'message error';
+                messageBox.style.display = 'block';
+            }
+        }
+    </script>
+</body>    
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <title>User and Post Management</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-100 p-6">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-2xl font-bold mb-4">사용자와 게시물 관리</h1>
+            
+            <!-- 사용자 추가 -->
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold mb-2">사용자 추가</h2>
+                <input id="user-username" type="text" placeholder="Username" class="border p-2 mr-2">
+                <input id="user-email" type="email" placeholder="Email" class="border p-2 mr-2">
+                <button onclick="createUser()" class="bg-blue-500 text-white p-2 rounded">추가</button>
+            </div>
+            
+            <!-- 게시물 추가 -->
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold mb-2">게시물 추가</h2>
+                <input id="post-title" type="text" placeholder="Title" class="border p-2 mr-2">
+                <input id="post-content" type="text" placeholder="Content (optional)" class="border p-2 mr-2">
+                <input id="post-user-id" type="number" placeholder="User ID (optional)" class="border p-2 mr-2">
+                <button onclick="createPost()" class="bg-blue-500 text-white p-2 rounded">추가</button>
+            </div>
+            
+            <!-- 사용자 목록 -->
+            <div id="user-list" class="mb-6"></div>
+            
+            <script>
+                async function fetchUsers() {
+                    const response = await fetch('/users/?page=1');
+                    const users = await response.json();
+                    const userList = document.getElementById('user-list');
+                    userList.innerHTML = '<h2 class="text-xl font-semibold mb-2">사용자 목록</h2>';
+                    users.forEach(user => {
+                        const div = document.createElement('div');
+                        div.className = 'border p-4 mb-2 bg-white';
+                        div.innerHTML = `
+                            <p><strong>ID:</strong> ${user.id}</p>
+                            <p><strong>Username:</strong> ${user.username}</p>
+                            <p><strong>Email:</strong> ${user.email}</p>
+                            <button onclick="fetchUserPosts(${user.id})" class="bg-green-500 text-white p-2 rounded mr-2">게시물 보기</button>
+                            <button onclick="showUpdateUserForm(${user.id}, '${user.username}', '${user.email}')" class="bg-yellow-500 text-white p-2 rounded mr-2">수정</button>
+                            <button onclick="deleteUser(${user.id})" class="bg-red-500 text-white p-2 rounded">삭제</button>
+                            <div id="posts-${user.id}" class="mt-2"></div>
+                            <div id="update-user-${user.id}" class="mt-2"></div>
+                        `;
+                        userList.appendChild(div);
+                    });
+                }
+
+                async function createUser() {
+                    const username = document.getElementById('user-username').value;
+                    const email = document.getElementById('user-email').value;
+                    const response = await fetch('/users/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, email })
+                    });
+                    if (response.ok) {
+                        alert('사용자 추가 성공');
+                        fetchUsers();
+                    } else {
+                        alert('사용자 추가 실패');
+                    }
+                }
+
+                async function showUpdateUserForm(id, username, email) {
+                    const updateDiv = document.getElementById(`update-user-${id}`);
+                    updateDiv.innerHTML = `
+                        <input id="update-user-username-${id}" type="text" value="${username}" class="border p-2 mr-2">
+                        <input id="update-user-email-${id}" type="email" value="${email}" class="border p-2 mr-2">
+                        <button onclick="updateUser(${id})" class="bg-yellow-500 text-white p-2 rounded">수정 저장</button>
+                    `;
+                }
+
+                async function updateUser(id) {
+                    const username = document.getElementById(`update-user-username-${id}`).value;
+                    const email = document.getElementById(`update-user-email-${id}`).value;
+                    const response = await fetch(`/users/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, email })
+                    });
+                    if (response.ok) {
+                        alert('사용자 수정 성공');
+                        fetchUsers();
+                    } else {
+                        alert('사용자 수정 실패');
+                    }
+                }
+
+                async function deleteUser(id) {
+                    if (confirm('정말 삭제하시겠습니까?')) {
+                        const response = await fetch(`/users/${id}`, {
+                            method: 'DELETE'
+                        });
+                        if (response.ok) {
+                            alert('사용자 삭제 성공');
+                            fetchUsers();
+                        } else {
+                            alert('사용자 삭제 실패');
+                        }
+                    }
+                }
+
+                async function createPost() {
+                    const title = document.getElementById('post-title').value;
+                    const content = document.getElementById('post-content').value || null;
+                    const user_id = document.getElementById('post-user-id').value || null;
+                    const response = await fetch('/posts/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title, content, user_id })
+                    });
+                    if (response.ok) {
+                        alert('게시물 추가 성공');
+                        fetchUsers();
+                    } else {
+                        alert('게시물 추가 실패');
+                    }
+                }
+
+                async function fetchUserPosts(userId) {
+                    const response = await fetch(`/users/posts/${userId}?page=1`);
+                    const [user, posts] = await response.json();
+                    const postsDiv = document.getElementById(`posts-${userId}`);
+                    postsDiv.innerHTML = `<h3 class="text-lg font-semibold">게시물 (${user.username})</h3>`;
+                    posts.forEach(post => {
+                        const div = document.createElement('div');
+                        div.className = 'border p-2 mb-2 bg-gray-50';
+                        div.innerHTML = `
+                            <p><strong>ID:</strong> ${post.id}</p>
+                            <p><strong>Title:</strong> ${post.title}</p>
+                            <p><strong>Content:</strong> ${post.content || '없음'}</p>
+                            <p><strong>Count:</strong> ${post.cnt}</p>
+                            <button onclick="showUpdatePostForm(${post.id}, '${post.title}', '${post.content || ''}', ${post.cnt})" class="bg-yellow-500 text-white p-1 rounded mr-2">수정</button>
+                            <button onclick="deletePost(${post.id})" class="bg-red-500 text-white p-1 rounded">삭제</button>
+                            <div id="update-post-${post.id}" class="mt-2"></div>
+                        `;
+                        postsDiv.appendChild(div);
+                    });
+                }
+
+                async function showUpdatePostForm(id, title, content, cnt) {
+                    const updateDiv = document.getElementById(`update-post-${id}`);
+                    updateDiv.innerHTML = `
+                        <input id="update-post-title-${id}" type="text" value="${title}" class="border p-2 mr-2">
+                        <input id="update-post-content-${id}" type="text" value="${content}" class="border p-2 mr-2">
+                        <input id="update-post-cnt-${id}" type="number" value="${cnt}" class="border p-2 mr-2">
+                        <button onclick="updatePost(${id})" class="bg-yellow-500 text-white p-2 rounded">수정 저장</button>
+                    `;
+                }
+
+                async function updatePost(id) {
+                    const title = document.getElementById(`update-post-title-${id}`).value;
+                    const content = document.getElementById(`update-post-content-${id}`).value || null;
+                    const cnt = parseInt(document.getElementById(`update-post-cnt-${id}`).value) || 0;
+                    const response = await fetch(`/posts/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title, content, cnt })
+                    });
+                    if (response.ok) {
+                        alert('게시물 수정 성공');
+                        fetchUsers();
+                    } else {
+                        alert('게시물 수정 실패');
+                    }
+                }
+
+                async function deletePost(id) {
+                    if (confirm('정말 삭제하시겠습니까?')) {
+                        const response = await fetch(`/posts/${id}`, {
+                            method: 'DELETE'
+                        });
+                        if (response.ok) {
+                            alert('게시물 삭제 성공');
+                            fetchUsers();
+                        } else {
+                            alert('게시물 삭제 실패');
+                        }
+                    }
+                }
+
+                window.onload = fetchUsers;
+            </script>
+        </div>
+    </body>
+    </html>

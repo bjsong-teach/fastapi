@@ -29,6 +29,7 @@ services:
       - .env
     volumes:
       - ./app:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      - ./app/templates:/app/templates 
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-include "*.html" --reload-dir templates
 volumes:
   mysql_data:
