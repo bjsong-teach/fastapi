@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from typing import Optional, List
 #sqlmodel 핵심 기능
 from sqlmodel import SQLModel, Field, create_engine, Session, select, Relationship, delete
+from sqlmodel import SQLModel, Field, create_engine, Session, select, Relationship
 from sqlalchemy import Column
 from sqlalchemy.sql.sqltypes import Text, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -275,6 +276,24 @@ async def read_profiles(
         }
     )
     
+    
+@app.get("/profiles/{user_id}", response_class=HTMLResponse)
+async def read_profiles(
+        request: Request,
+        user_id: int, 
+        session: Session=Depends(get_session)
+    ):
+    profiles = await session.get(Profiles, user_id)  # ID로 조회
+    if not profiles:  # 없으면 404 에러
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return templates.TemplateResponse(
+        "profile.html",
+        {
+            "request": request,
+            "profiles": profiles
+        }
+    )
+    
 @app.patch("/profiles/{user_id}", response_model=Profiles)
 async def update_profiles(user_id: int, session: Session=Depends(get_session)):
     profiles = await session.get(Profiles, user_id)  # ID로 조회
@@ -321,6 +340,22 @@ async def read_all_users(
             "users": users
         }
     )
+    if not post:  # 없으면 404 에러
+        raise HTTPException(status_code=404, detail="Post not found")
+    return post  # 글 반환 
+
+@app.get("/profiles/all/", response_model=List[ProfileRead])
+async def read_all_profiles(session: Session=Depends(get_session)):
+    statement = select(Profiles)
+    result = await session.execute(statement)  # AsyncSession의 execute 사용
+    profiles = result.scalars().all()  # 결과에서 스칼라 객체 추출
+    return profiles
+@app.get("/users/all/", response_model=List[UserRead])
+async def read_all_users(session: AsyncSession=Depends(get_session)):
+    statement = select(Users)
+    result = await session.execute(statement)
+    users = result.scalars().all()  # 결과에서 스칼라 객체 추출
+    return users
 '''
 @app.get("/posts/all/", response_model=List[PostRead])
 async def read_all_posts(session: Session=Depends(get_session)):

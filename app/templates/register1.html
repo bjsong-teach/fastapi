@@ -2,7 +2,11 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+<<<<<<< HEAD
     <title>회원 정보 수정</title>
+=======
+    <title>회원 가입</title>
+>>>>>>> bc3808f579f4f96a4218bc79ea4f64079135fa2e
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -82,37 +86,68 @@
             <p>사용자 정보를 불러올 수 없습니다.</p>
         {% endif %}
 
+        <h1>회원 가입</h1>
+        {% if user %} {{ user.id }}
+            <p><strong>ID:</strong> {{ user.id }}</p>
+            <p><strong>사용자 이름:</strong> {{ user.username }}</p>
+            <p><strong>이메일:</strong> {{ user.email }}</p>
+        {% else %}
+            <p>사용자를 찾을 수 없습니다.</p>
+        {% endif %}
+        <input type="hidden" name="id" id="id" value="{{user.id}}">
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input id="username" type="text" placeholder="Username" value="{{ user.username }}">
+        </div>
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input id="email" type="email" placeholder="Email" value="{{ user.email }}">
+        </div>
+        <button onclick="registerUser()">가입</button>
         <p class="link"><a href="/">홈으로 돌아가기</a></p>
     </div>
 
     <script>
         // [수정] async function 키워드를 함수 이름 앞으로 이동하여 올바르게 정의
-        async function updateUser() {
-            event.preventDefault();
-            const id = document.getElementById('id').value;
-            const username = document.getElementById('username').value;
-            const email = document.getElementById('email').value;
+       
 
-            if (!username || !email) {
-                alert('모든 필드를 입력하세요.');
-                return;
-            }
+        const userData = 
+            async function updateUser() {
+                const id = document.getElementById('id').value;
+                const username = document.getElementById('username').value;
+                const email = document.getElementById('email').value;
+                if (!username || !email) {
+                    alert('모든 필드를 입력하세요.');
+                    return;
+                }
 
-            // [수정] fetch URL을 '/users/{id}' 형태로 동적으로 생성
-            const response = await fetch(`/users/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                // [수정] 요청 본문(body)에서 id를 제거하고 변경할 데이터만 포함
-                body: JSON.stringify({ username, email })
-            });
+                // [수정] fetch URL을 '/users/{id}' 형태로 동적으로 생성
+                const response = await fetch(`/users/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    // [수정] 요청 본문(body)에서 id를 제거하고 변경할 데이터만 포함
+                    body: JSON.stringify({ username, email })
+                });
 
-            if (response.ok) {
-                alert('회원 정보 수정 성공!');
-                // 성공 시 프로필 페이지나 홈으로 이동할 수 있습니다.
-                window.location.href = `/users/${id}`;
-            } else {
-                const error = await response.json();
-                alert(`회원 정보 수정 실패: ${error.detail}`);
+                if (response.ok) {
+                    alert('회원 정보 수정 성공!');
+                    // 성공 시 프로필 페이지나 홈으로 이동할 수 있습니다.
+                    window.location.href = `/users/${id}`;
+                } else {
+                    const error = await response.json();
+                    alert(`회원 정보 수정 실패: ${error.detail}`);
+                const response = await fetch('/users/', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, username, email })
+                });
+                if (response.ok) {
+                    alert('회원 가입 성공!');
+                    //window.location.href = '/';
+                } else {
+                    const error = await response.json();
+                    alert(`회원 가입 실패: ${error.detail}`);
+                }
             }
         }
     </script>
